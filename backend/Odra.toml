@@ -1,0 +1,8 @@
+[[contracts]]
+fqn = "flipper::Flipper"
+[[networks]]
+name = "testnet"
+node_address = "https://node.testnet.casper.network/rpc"
+chain_name = "casper-test"
+secret_key_path = "keys/secret_key.pem"   
+
