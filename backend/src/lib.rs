@@ -4,3 +4,5 @@ extern crate alloc;
 
 pub mod flipper;
 pub mod token;
+pub mod governance;
+pub mod registry;

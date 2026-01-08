@@ -1,6 +1,12 @@
 use odra::prelude::*;
 use odra::casper_types::{U256};
 
+#[odra::odra_error]
+pub enum TokenError {
+    InsufficientAllowance = 1,
+    InsufficientBalance = 2,
+}
+
 /// CEP-18 compatible token contract for Syndicate DAO
 #[odra::module]
 pub struct SyndicateToken {
@@ -78,7 +84,7 @@ impl SyndicateToken {
         let current_allowance = self.allowances.get(&(owner, spender)).unwrap_or_default();
 
         if current_allowance < amount {
-            self.env().revert(1); // Insufficient allowance
+            self.env().revert(TokenError::InsufficientAllowance); // Insufficient allowance
         }
 
         self.allowances.set(&(owner, spender), current_allowance - amount);
@@ -105,7 +111,7 @@ impl SyndicateToken {
 
         let from_balance = self.balances.get(&from).unwrap_or_default();
         if from_balance < amount {
-            self.env().revert(2); // Insufficient balance
+            self.env().revert(TokenError::InsufficientBalance); // Insufficient balance
         }
 
         let to_balance = self.balances.get(&to).unwrap_or_default();
@@ -136,13 +142,14 @@ mod tests {
         let recipient = env.get_account(0);
         let mut token = SyndicateToken::deploy(
             &env,
-            (
-                "Syndicate Token".to_string(),
-                "SYND".to_string(),
-                18u8,
-                U256::from(1_000_000_000_000_000_000_000_000u128),
-                recipient,
-            ),
+            SyndicateTokenInitArgs{
+                name: "Syndicate Token".to_string(),
+                symbol: "SYND".to_string(),
+                decimals: 18u8,
+                initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
+                recipient
+            }
+            
         );
 
         assert_eq!(token.name(), "Syndicate Token");
@@ -157,13 +164,13 @@ mod tests {
         let recipient = env.get_account(1);
         let mut token = SyndicateToken::deploy(
             &env,
-            (
-                "Test Token".to_string(),
-                "TEST".to_string(),
-                18u8,
-                U256::from(1_000_000_000_000_000_000_000_000u128),
-                sender,
-            ),
+            SyndicateTokenInitArgs{
+                name: "Test Token".to_string(),
+                symbol: "TEST".to_string(),
+                decimals: 18u8,
+                initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
+                recipient:sender
+            }
         );
 
         env.set_caller(sender);
