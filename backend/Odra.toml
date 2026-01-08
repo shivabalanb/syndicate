@@ -1,5 +1,14 @@
 [[contracts]]
-fqn = "flipper::Flipper"
+fqn = "token::Token"       # Or "syndicate_token::SyndicateToken" if you renamed the file
+name = "token"   # This will be the name of the .wasm file
+
+[[contracts]]
+fqn = "governance::Governance"
+name = "governance"
+
+[[contracts]]
+fqn = "registry::DaoRegistry"
+name = "dao_registry"
 [[networks]]
 name = "testnet"
 node_address = "https://node.testnet.casper.network/rpc"

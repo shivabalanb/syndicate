@@ -1,15 +1,16 @@
+use odra::casper_types::{U256,U512};
 use odra::prelude::*;
-use odra::casper_types::{U256};
 
 #[odra::odra_error]
 pub enum TokenError {
     InsufficientAllowance = 1,
     InsufficientBalance = 2,
+    InsufficientPayment = 3,
 }
 
 /// CEP-18 compatible token contract for Syndicate DAO
 #[odra::module]
-pub struct SyndicateToken {
+pub struct Token {
     /// Total supply of tokens
     total_supply: Var<U256>,
     /// Balances: address -> balance
@@ -25,7 +26,7 @@ pub struct SyndicateToken {
 }
 
 #[odra::module]
-impl SyndicateToken {
+impl Token {
     /// Initialize the token
     pub fn init(
         &mut self,
@@ -74,12 +75,7 @@ impl SyndicateToken {
     }
 
     /// Transfer tokens from one address to another (requires allowance)
-    pub fn transfer_from(
-        &mut self,
-        owner: Address,
-        recipient: Address,
-        amount: U256,
-    ) -> bool {
+    pub fn transfer_from(&mut self, owner: Address, recipient: Address, amount: U256) -> bool {
         let spender = self.env().caller();
         let current_allowance = self.allowances.get(&(owner, spender)).unwrap_or_default();
 
@@ -87,7 +83,8 @@ impl SyndicateToken {
             self.env().revert(TokenError::InsufficientAllowance); // Insufficient allowance
         }
 
-        self.allowances.set(&(owner, spender), current_allowance - amount);
+        self.allowances
+            .set(&(owner, spender), current_allowance - amount);
         self.transfer_internal(owner, recipient, amount)
     }
 
@@ -125,31 +122,46 @@ impl SyndicateToken {
         // In production, add access control here (e.g., only governance can mint)
         let current_supply = self.total_supply.get().unwrap_or_default();
         let recipient_balance = self.balances.get(&recipient).unwrap_or_default();
-        
+
         self.total_supply.set(current_supply + amount);
         self.balances.set(&recipient, recipient_balance + amount);
+    }
+
+    #[odra(payable)]
+    pub fn buy_tokens(&mut self) {
+        let cspr_amount = self.env().attached_value();
+        if cspr_amount == U512::zero() {
+            self.env().revert(TokenError::InsufficientPayment); 
+        }
+        let buyer = self.env().caller();
+
+        let amount_as_u256 = U256::from(cspr_amount.as_u64());
+
+        // Rate: 1 CSPR = 10 DAO Tokens
+        let token_amount = amount_as_u256 * U256::from(10);
+
+        self.mint(buyer, token_amount);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use odra::host::{Deployer, NoArgs};
+    use odra::host::Deployer;
 
     #[test]
     fn test_token_init() {
         let env = odra_test::env();
         let recipient = env.get_account(0);
-        let mut token = SyndicateToken::deploy(
+        let mut token = Token::deploy(
             &env,
-            SyndicateTokenInitArgs{
+            TokenInitArgs {
                 name: "Syndicate Token".to_string(),
                 symbol: "SYND".to_string(),
                 decimals: 18u8,
                 initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
-                recipient
-            }
-            
+                recipient,
+            },
         );
 
         assert_eq!(token.name(), "Syndicate Token");
@@ -162,15 +174,15 @@ mod tests {
         let env = odra_test::env();
         let sender = env.get_account(0);
         let recipient = env.get_account(1);
-        let mut token = SyndicateToken::deploy(
+        let mut token = Token::deploy(
             &env,
-            SyndicateTokenInitArgs{
+            TokenInitArgs {
                 name: "Test Token".to_string(),
                 symbol: "TEST".to_string(),
                 decimals: 18u8,
                 initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
-                recipient:sender
-            }
+                recipient: sender,
+            },
         );
 
         env.set_caller(sender);
