@@ -1,18 +1,19 @@
-import { Inter } from 'next/font/google';
+import { ClickUI } from '@make-software/csprclick-ui';
 import './globals.css';
-import ContextComp from '@/context/ContextComp';
 import CasperProvider from '@/context/CasperProvider';
-
-const inter = Inter({ subsets: ['latin'] });
+import Navbar from '@/components/Navbar';
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <div id={'root'} />
-        <ContextComp>
-          <CasperProvider>{children}</CasperProvider>
-        </ContextComp>
+      <body>
+        <div id="root" />
+        <CasperProvider>
+          <main className="min-h-screen pt-20 ">
+            <Navbar />
+            {children}
+          </main>
+        </CasperProvider>
       </body>
     </html>
   );
