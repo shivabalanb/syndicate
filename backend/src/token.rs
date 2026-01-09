@@ -1,4 +1,4 @@
-use odra::casper_types::{U256,U512};
+use odra::casper_types::{U256, U512};
 use odra::prelude::*;
 
 #[odra::odra_error]
@@ -23,6 +23,8 @@ pub struct Token {
     symbol: Var<String>,
     /// Token decimals
     decimals: Var<u8>,
+    /// Buy rate
+    buy_rate: Var<U256>,
 }
 
 #[odra::module]
@@ -35,12 +37,14 @@ impl Token {
         decimals: u8,
         initial_supply: U256,
         recipient: Address,
+        buy_rate: U256,
     ) {
         self.name.set(name);
         self.symbol.set(symbol);
         self.decimals.set(decimals);
         self.total_supply.set(initial_supply);
         self.balances.set(&recipient, initial_supply);
+        self.buy_rate.set(buy_rate);
     }
 
     /// Get token name
@@ -61,6 +65,11 @@ impl Token {
     /// Get total supply
     pub fn total_supply(&self) -> U256 {
         self.total_supply.get().unwrap_or_default()
+    }
+
+    /// Get buy rate
+    pub fn buy_rate(&self) -> U256 {
+        self.buy_rate.get().unwrap_or_default()
     }
 
     /// Get balance of an address
@@ -131,14 +140,14 @@ impl Token {
     pub fn buy_tokens(&mut self) {
         let cspr_amount = self.env().attached_value();
         if cspr_amount == U512::zero() {
-            self.env().revert(TokenError::InsufficientPayment); 
+            self.env().revert(TokenError::InsufficientPayment);
         }
         let buyer = self.env().caller();
 
         let amount_as_u256 = U256::from(cspr_amount.as_u64());
 
-        // Rate: 1 CSPR = 10 DAO Tokens
-        let token_amount = amount_as_u256 * U256::from(10);
+        let buy_rate = self.buy_rate();
+        let token_amount = amount_as_u256 * buy_rate;
 
         self.mint(buyer, token_amount);
     }
@@ -147,7 +156,7 @@ impl Token {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use odra::host::Deployer;
+    use odra::host::{Deployer, HostRef};
 
     #[test]
     fn test_token_init() {
@@ -161,6 +170,7 @@ mod tests {
                 decimals: 18u8,
                 initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
                 recipient,
+                buy_rate: U256::from(10)
             },
         );
 
@@ -182,6 +192,7 @@ mod tests {
                 decimals: 18u8,
                 initial_supply: U256::from(1_000_000_000_000_000_000_000_000u128),
                 recipient: sender,
+                buy_rate: U256::from(10)
             },
         );
 
@@ -192,5 +203,38 @@ mod tests {
             token.balance_of(recipient),
             U256::from(100_000_000_000_000_000_000_000u128)
         );
+    }
+
+    #[test]
+    fn test_buy_tokens_crowdsale() {
+        let env = odra_test::env();
+        let creator = env.get_account(0);
+        let buyer = env.get_account(1);
+        let init_rate = U256::from(20);
+
+        // 1. Deploy Token
+        let mut token = Token::deploy(
+            &env,
+            TokenInitArgs {
+                name: "Alpha".to_string(),
+                symbol: "ALP".to_string(),
+                decimals: 18,
+                initial_supply: U256::zero(),
+                recipient: creator,
+                buy_rate: init_rate
+            },
+        );
+
+        env.set_caller(buyer);
+        let cspr_sent = U512::from(50);
+        token.with_tokens(cspr_sent).buy_tokens();
+
+        println!("Buyer sent 50 CSPR to buy tokens...");
+        let current_rate = token.buy_rate();
+        let expected_balance = U256::from(cspr_sent.as_u64()) * current_rate;
+        let buyer_balance = token.balance_of(buyer);
+
+        assert_eq!(buyer_balance, expected_balance);
+        println!("SUCCESS: Buyer received {} tokens!", buyer_balance);
     }
 }

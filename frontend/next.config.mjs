@@ -7,10 +7,6 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/casper-rpc', // The fake path your app will call
-        destination: 'http://176.9.53.142:7777' // The real node
-      },
-      {
         source: '/api/casper-rpc/rpc', 
         destination: 'http://176.9.53.142:7777/rpc' 
       }

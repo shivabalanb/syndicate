@@ -40,6 +40,7 @@ mod tests {
                 decimals: 18,
                 initial_supply: U256::from(1000), // 1000 Tokens
                 recipient: creator,
+                buy_rate: U256::from(10),
             },
         );
         let token_addr = token.address();
@@ -56,12 +57,7 @@ mod tests {
         println!("3. Governance Deployed at {:?}", gov_addr);
 
         // C. Register it in the Registry
-        let dao_id = registry.register_dao(
-            "Alpha DAO".to_string(),
-            "ALP".to_string(),
-            token_addr,
-            gov_addr,
-        );
+        let dao_id = registry.register_dao(token_addr, gov_addr);
         assert_eq!(dao_id, 1);
         println!("4. DAO Registered with ID: {}", dao_id);
 

@@ -1,10 +1,9 @@
 use odra::prelude::*;
 
 /// Information about a registered DAO
+/// Note: name and symbol should be queried from the token contract
 #[odra::odra_type]
 pub struct DaoInfo {
-    pub name: String,
-    pub symbol: String,
     pub token_address: Address,
     pub governance_address: Address,
     pub creator: Address,
@@ -32,19 +31,12 @@ impl DaoRegistry {
 
     /// Register a new DAO after deploying Token and Governance contracts
     /// Call this from the frontend after deploying both contracts
-    pub fn register_dao(
-        &mut self,
-        name: String,
-        symbol: String,
-        token_address: Address,
-        governance_address: Address,
-    ) -> u64 {
+    /// Note: Token name and symbol can be queried from the token contract
+    pub fn register_dao(&mut self, token_address: Address, governance_address: Address) -> u64 {
         let dao_id = self.dao_counter.get_or_default() + 1;
         self.dao_counter.set(dao_id);
 
         let info = DaoInfo {
-            name: name.clone(),
-            symbol: symbol.clone(),
             token_address,
             governance_address,
             creator: self.env().caller(),
@@ -95,8 +87,8 @@ mod tests {
     #[test]
     fn test_registry_init() {
         let env = odra_test::env();
-        let mut registry = DaoRegistry::deploy(&env, NoArgs);
-        
+        let registry = DaoRegistry::deploy(&env, NoArgs);
+
         assert_eq!(registry.get_dao_count(), 0);
         assert_eq!(registry.get_all_daos().len(), 0);
     }
@@ -109,17 +101,15 @@ mod tests {
 
         env.set_caller(creator);
         let dao_id = registry.register_dao(
-            "Alpha Club".to_string(),
-            "ALPH".to_string(),
-            creator, // Mock addresses
-            creator,
+            creator, // Mock token address
+            creator, // Mock governance address
         );
 
         assert_eq!(dao_id, 1);
         assert_eq!(registry.get_dao_count(), 1);
-        
+
         let dao = registry.get_dao(dao_id).unwrap();
-        assert_eq!(dao.name, "Alpha Club");
-        assert_eq!(dao.symbol, "ALPH");
+        assert_eq!(dao.token_address, creator);
+        assert_eq!(dao.governance_address, creator);
     }
 }

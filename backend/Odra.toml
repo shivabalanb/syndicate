@@ -9,6 +9,7 @@ name = "governance"
 [[contracts]]
 fqn = "registry::DaoRegistry"
 name = "dao_registry"
+
 [[networks]]
 name = "testnet"
 node_address = "https://node.testnet.casper.network/rpc"

@@ -22,18 +22,20 @@ path = "bin/build_contract.rs"
 test = false
 
 [[bin]]
-name = "syndicate_build_schema"
+name = "build_schema"
 path = "bin/build_schema.rs"
 test = false
 
 [[bin]]
-name = "syndicate_cli"
+name = "cli"
 path = "bin/cli.rs"
 test = false
 
 [profile.release]
 codegen-units = 1
 lto = true
+opt-level = "z"
+strip = true
 
 [profile.dev.package."*"]
 opt-level = 3

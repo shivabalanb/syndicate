@@ -21,7 +21,7 @@ export async function testRpcConnection(): Promise<{
   const startTime = Date.now();
   try {
     // Try to get the node status/peers - a lightweight RPC call
-    const response = await fetch(NODE_URL, {
+    const response = await fetch(`${NODE_URL}/rpc`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -58,83 +58,6 @@ export async function testRpcConnection(): Promise<{
   }
 }
 
-// --- HELPER: Sleep ---
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-// --- HELPER: Poll for Execution ---
-/**
- * Polls the network until a deploy is executed.
- * @param deployHash The hex string of the deploy hash.
- * @returns The execution result object from the node.
- */
-export async function waitForDeploy(deployHash: string): Promise<any> {
-  let attempts = 0;
-  while (attempts < 60) {
-    // Try for ~3 minutes
-    try {
-      // The SDK's getDeploy returns [Deploy, GetDeployResult]
-      // We force cast 'raw' to any because the SDK types for execution_results are sometimes incomplete
-      const [_, raw] = await client.getDeploy(deployHash);
-      const result = raw as any;
-
-      if (result.execution_results && result.execution_results.length > 0) {
-        return result.execution_results[0]; // Return the first result
-      }
-    } catch (err) {
-      // Deploy might not be found yet (404), ignore and wait
-    }
-    await sleep(3000); // Check every 3 seconds
-    attempts++;
-  }
-  throw new Error('Timeout waiting for deploy execution');
-}
-
-// --- HELPER: Parse Contract Hash from Effects ---
-/**
- * Parses the "Write" effects of a transaction to find the newly created contract hash.
- * @param executionResult The raw execution result object.
- * @returns The contract hash string (e.g., "hash-123..." or "contract-123...").
- */
-export function parseContractHash(executionResult: any): string {
-  if (!executionResult || !executionResult.result) {
-    throw new Error('Invalid execution result object');
-  }
-
-  // Check for failure
-  if (executionResult.result.Failure) {
-    throw new Error('Deploy failed on-chain: ' + JSON.stringify(executionResult.result.Failure));
-  }
-
-  // Access the effects (transforms)
-  const effects = executionResult.result.Success?.effect?.transforms;
-
-  if (!effects || !Array.isArray(effects)) {
-    throw new Error('No effects found in execution result.');
-  }
-
-  // Strategy: Look for the Key that was written which starts with "contract-" or "hash-"
-  // Since we are deploying, we look for the NEWLY created contract.
-  for (const transform of effects) {
-    const key: string = transform.key;
-
-    // Odra usually saves the package hash under the name provided in odra_cfg_package_hash_key_name
-    // But generic parsing looks for the raw hash.
-    if (key.startsWith('hash-') || key.startsWith('contract-')) {
-      // Simple heuristic: If it's a 'Write' operation, it's likely our new contract
-      // You might need to refine this if your contract does many writes.
-      // The transform structure is usually { key: "...", transform: "Write" | { Write: ... } }
-      // We check if "Write" exists as a key or value depending on node version
-      if (
-        transform.transform === 'Write' ||
-        (typeof transform.transform === 'object' && 'Write' in transform.transform)
-      ) {
-        return key;
-      }
-    }
-  }
-  throw new Error('Could not find new Contract Hash in transaction effects.');
-}
-
 // --- HELPER: Convert Hash String to CLKey (Address) ---
 /**
  * Converts a string address (account-hash, hash, contract) into a CLKey for Odra/Casper arguments.
@@ -158,4 +81,108 @@ export function stringToKey(hashString: string): CLKey {
 
   // If it's a Contract or Package (Standard "hash-" or "contract-")
   return new CLKey(new CLByteArray(bytes));
+}
+
+// --- QUERY TOKEN CONTRACT FOR NAME AND SYMBOL ---
+/**
+ * Fetches token name and symbol from a deployed token contract
+ * @param contractHash The contract hash (e.g. "hash-..." or just the hex)
+ * @returns Object with name and symbol, or null if failed
+ */
+export async function fetchTokenMetadata(contractHash: string): Promise<{
+  name: string;
+  symbol: string;
+} | null> {
+  try {
+    const cleanHash = contractHash.replace('hash-', '').replace('contract-', '');
+
+    // Query the contract's named keys for 'name' and 'symbol'
+    const response = await fetch(`${NODE_URL}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'query_global_state',
+        params: {
+          state_identifier: null, // latest state
+          key: `hash-${cleanHash}`,
+          path: []
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error('RPC Error:', data.error);
+      return null;
+    }
+
+    // Parse the stored values from the contract state
+    const storedValue = data.result?.stored_value;
+    if (!storedValue?.Contract) {
+      console.error('Not a contract:', storedValue);
+      return null;
+    }
+
+    const namedKeys = storedValue.Contract.named_keys || [];
+
+    // Find name and symbol keys
+    let nameKey = namedKeys.find((k: any) => k.name === 'name')?.key;
+    let symbolKey = namedKeys.find((k: any) => k.name === 'symbol')?.key;
+
+    if (!nameKey || !symbolKey) {
+      console.error('Name or symbol key not found in contract');
+      return null;
+    }
+
+    // Fetch the actual values
+    const [nameResult, symbolResult] = await Promise.all([
+      fetchURef(nameKey),
+      fetchURef(symbolKey)
+    ]);
+
+    return {
+      name: nameResult || '',
+      symbol: symbolResult || ''
+    };
+  } catch (err) {
+    console.error('Failed to fetch token metadata:', err);
+    return null;
+  }
+}
+
+async function fetchURef(urefKey: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${NODE_URL}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'query_global_state',
+        params: {
+          state_identifier: null,
+          key: urefKey,
+          path: []
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      return null;
+    }
+
+    const storedValue = data.result?.stored_value;
+    if (storedValue?.CLValue?.parsed) {
+      return storedValue.CLValue.parsed;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }

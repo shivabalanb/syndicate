@@ -1,5 +1,5 @@
-last_updated = "2026-01-08T03:14:10Z"
+last_updated = "2026-01-09T17:46:36Z"
 
 [[contracts]]
-name = "Flipper"
-package_hash = "hash-2ecf0e2993e88642f386aab27f86d5987406ca3f00e7d0c63102aff8d668ab87"
+name = "DaoRegistry"
+package_hash = "hash-a9a98a525c2b8591d0379fa88d38505e56010486efd1219fb2376d1d85528ff8"

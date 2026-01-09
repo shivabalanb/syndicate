@@ -38,7 +38,7 @@ export default function CreateSyndicateModal() {
   const [loading, setLoading] = useState(false);
 
   // Data
-  const [formData, setFormData] = useState({ name: 'Alpha DAO', symbol: 'ALPHA' });
+  const [formData, setFormData] = useState({ name: '', symbol: '' });
   const [deployHashes, setDeployHashes] = useState({ token: '', governance: '' });
   const [addresses, setAddresses] = useState({ token: '', governance: '' });
 
@@ -171,8 +171,6 @@ export default function CreateSyndicateModal() {
       const govKey = stringToKey(addresses.governance);
 
       const args = RuntimeArgs.fromMap({
-        name: CLValueBuilder.string(formData.name),
-        symbol: CLValueBuilder.string(formData.symbol),
         token_address: tokenKey,
         governance_address: govKey
       });
@@ -300,11 +298,6 @@ export default function CreateSyndicateModal() {
         {/* STEP 3: Deploy Governance */}
         {step === 3 && (
           <div className="space-y-4 py-4">
-            <div className="flex items-center gap-2 text-green-600 mb-2">
-              <CheckCircle className="h-5 w-5" />
-              <span className="text-sm">Token: {addresses.token.slice(0, 20)}...</span>
-            </div>
-
             <p className="text-sm text-muted-foreground">
               Deploy the Governance contract linked to your Token.
             </p>
@@ -372,22 +365,34 @@ export default function CreateSyndicateModal() {
         {/* STEP 5: Register DAO */}
         {step === 5 && (
           <div className="space-y-4 py-4">
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="h-4 w-4" />
-                <span>Token: {addresses.token.slice(0, 20)}...</span>
+            <p className="text-sm text-muted-foreground">
+              Enter contract addresses to register your DAO in the registry.
+            </p>
+
+            <div className="grid gap-3">
+              <div className="grid gap-2">
+                <Label>Token Contract Address *</Label>
+                <Input
+                  placeholder="hash-... or contract-..."
+                  value={addresses.token}
+                  onChange={(e) => setAddresses({ ...addresses, token: e.target.value })}
+                />
               </div>
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle className="h-4 w-4" />
-                <span>Governance: {addresses.governance.slice(0, 20)}...</span>
+
+              <div className="grid gap-2">
+                <Label>Governance Contract Address *</Label>
+                <Input
+                  placeholder="hash-... or contract-..."
+                  value={addresses.governance}
+                  onChange={(e) => setAddresses({ ...addresses, governance: e.target.value })}
+                />
               </div>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Final step: Register your DAO in the central registry.
-            </p>
-
-            <Button onClick={registerDAO} disabled={loading} className="w-full">
+            <Button
+              onClick={registerDAO}
+              disabled={loading || !addresses.token || !addresses.governance}
+              className="w-full">
               {loading ? <Loader2 className="animate-spin mr-2" /> : 'Register DAO (3/3)'}
             </Button>
             <Button
